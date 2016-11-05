@@ -109,6 +109,7 @@ def receiver(self):
 					#SE ELE FOR O MAIOR DEVE ENVIAR UM OK PARA TODOS MENORES
 					#TOMA O PODER
 					#COMO SABER QUE ELE EH O MAIOR NUMERO ATUAL?
+					#TAlvez algo global
 
 				elif message == COORDENADOR:
 					#Caso valentao tenha acordado
