@@ -54,6 +54,9 @@ from random import *
 TIMEOUT = 10
 ELEICAO = "ELEICAO"
 COORDENADOR = "COORDENADOR"
+OK = "OK"
+LIDER = "LIDER"
+CURRENT_VALENTON = 0
 #==============Functions======================#
 
 #Class that initialize the node
@@ -62,6 +65,8 @@ class Node:
 	node_id = -1
 	nodePorts = [5000, 5001, 5002, 5003,5004]
 	time = 0
+	coordenator = -1
+	
 
 	def __init__(self, node_id):
 		self.node_id = node_id
@@ -69,15 +74,24 @@ class Node:
 		self.time = randint(0,100) #cada node recebe um tempo aleatorio
 
 	def rinit(self):
+		global CURRENT_VALENTON
+
 		try:
 			sock.bind(('localhost', nodePorts[self.node_id]))
 		except Exception:
 			pass
 
-		raw_input("") # press enter to send a request
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+
+		raw_input("") # press enter to send a request - ELEICAO
+
+		if self.node_id >= CURRENT_VALENTON:
+			CURRENT_VALENTON = self.node_id
+			print "CURRENT VALENTAUM", CURRENT_VALENTON
 
 		if self.node_id == 4:
 			message_ziped = pickle.dumps(COORDENADOR)
+			self.coordenator = 4
 		else:
 			message_ziped = pickle.dumps(ELEICAO)
 
@@ -87,32 +101,67 @@ class Node:
 			if self.node_id == 4 and i < self.node_id == 4:
 				self.sock.sendto(message_ziped, ('localhost', self.nodePorts[i])) #enviara para todos os processos
 
-#The listener, waiting to get the message
-def receiver(self):
-		sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM) # UDP
 
-		try:
-	   		sock.bind(('localhost', self.node_port))
-	   	except Exception:
-			pass
+	def findIdCoord(PORT):
+		if PORT == 5000:
+			return 0;
+		elif PORT == 5001:
+			return 1;
+		elif PORT == 5002:
+			return 2;
+		elif PORT == 5003:
+			return 3;
+		elif PORT == 5004:
+			return 4;
 
-		while True:
-	   		try:
-	   			message_ziped, (ADDRESS, PORT) = sock.recvfrom(1024)
-	   			message = pickle.loads(message_ziped)
-	   		except Exception:
-				time.sleep(10)
-				print "\nWaiting message"
+	#The listener, waiting to get the message
+	def receiver(self):
+			sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM) # UDP
+
+			try:
+		   		sock.bind(('localhost', self.node_port))
+		   	except Exception:
 				pass
-			else:
-				if(message == ELEICAO):
-					#SE ELE FOR O MAIOR DEVE ENVIAR UM OK PARA TODOS MENORES
-					#TOMA O PODER
-					#COMO SABER QUE ELE EH O MAIOR NUMERO ATUAL?
-					#TAlvez algo global
 
-				elif message == COORDENADOR:
-					#Caso valentao tenha acordado
+			while True:
+		   		try:
+		   			message_ziped, (ADDRESS, PORT) = sock.recvfrom(1024)
+		   			message = pickle.loads(message_ziped)
+		   		except Exception:
+					time.sleep(10)
+					print "\nWaiting message"
+					pass
+				else:
+					if(message == ELEICAO):
+						#SE O PROCESSO RECEBER UMA ELEICAO DEVE ENVIAR UM OK PARA QUEM ENVIOU PARA ELE
+						#TOMA O PODER
+						message_ziped = pickle.dumps(OK) # ENVIA O OK PRA QUEM ENVIOU A ELEICAO - UNICAST
+						print "SENDING OK TO --> [IP: ", ADDRESS,"]","[PORT:", PORT,"]"
+						sock.sendto(message_ziped, ('localhost', PORT))
+
+						#TENHO QUE MANDAR UMA ELEICAO PARA TODOS OS NODES ACIMA DE MIM
+						message_ziped = pickle.dumps(LIDER)
+						for i in range (len(self.nodePorts)):
+							if i > self.node_id:
+								sock.sendto(message_ziped, ('localhost', self.nodePorts[i]))
+
+					if message == LIDER:
+						if self.node_id == CURRENT_VALENTON:
+							print "DEI O GOLPE E GANHEI A ELICAO!!!"
+							self.coordenator = self.node_id #SIGNIFICA QUE EU SOU O VALENTAO
+
+						#COMO SOU O VALENTAUM VOU NOTIFICAR A TODOS QUE GANHEI A ELICAO
+						message_ziped = pickle.dumps(COORDENADOR)
+						for i in range (len(self.nodePorts)):
+							if i < self.node_id:
+								sock.sendto(message_ziped, ('localhost', self.nodePorts[i]))
+
+					elif message == COORDENADOR:
+						nProc = findIdCoord(PORT)
+						self.coordenator = nProc #atualiza o coordenador[valentaum] do processo
+						print "MY COORDENATOR NOW IS: ", str(self.coordenator)
+					elif message == OK: 
+						print "OK - RECEIVED"
 
 
 if __name__ == '__main__':
@@ -122,7 +171,9 @@ if __name__ == '__main__':
 
 	node = Node(node_id)
 
-	print "My port", node.node_port
+	print "Node: ", node_id
+	print "Node coordenator: ", node.coordenator
+	print "Node port: ", node.node_port
 
 	start_new_thread(node.receiver,())
 
